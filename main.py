@@ -101,30 +101,38 @@ async def process_image(file: UploadFile = File(...)):
     plate_results = plate_model(img, verbose=False)[0]
     
     plate_found = False
-    recognized_text = "Номерной знак не обнаружен"
+    recognized_plates = []
     
     if len(plate_results.boxes) > 0:
         plate_found = True
-        best_plate = max(plate_results.boxes, key=lambda b: b.conf[0].item())
-        x1, y1, x2, y2 = map(int, best_plate.xyxy[0].tolist())
         
-        cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
-        cv2.putText(img, "PLATE", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
-        
-        h, w, _ = orig_img.shape
-        pad = 5
-        crop_y1, crop_y2 = max(0, y1 - pad), min(h, y2 + pad)
-        crop_x1, crop_x2 = max(0, x1 - pad), min(w, x2 + pad)
-        crop_img = orig_img[crop_y1:crop_y2, crop_x1:crop_x2]
+        for idx, plate_box in enumerate(plate_results.boxes):
+            x1, y1, x2, y2 = map(int, plate_box.xyxy[0].tolist())
+            conf = plate_box.conf[0].item()
+            
+            cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 3)
+            cv2.putText(img, f"PLATE #{idx+1}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (0, 255, 0), 2)
+            
+            h, w, _ = orig_img.shape
+            pad = 5
+            crop_y1, crop_y2 = max(0, y1 - pad), min(h, y2 + pad)
+            crop_x1, crop_x2 = max(0, x1 - pad), min(w, x2 + pad)
+            crop_img = orig_img[crop_y1:crop_y2, crop_x1:crop_x2]
 
-        if crop_img.size > 0:
-            try:
-                recognized_text = predict_crnn(char_model, crop_img, crnn_charset, crnn_h, crnn_w)
-            except Exception:
-                recognized_text = "Ошибка работы CRNN"
-
-            if not recognized_text:
-                recognized_text = "Символы не распознаны"
+            if crop_img.size > 0:
+                try:
+                    text = predict_crnn(char_model, crop_img, crnn_charset, crnn_h, crnn_w)
+                except Exception:
+                    text = "Ошибка CRNN"
+                
+                if not text:
+                    text = "Символы не распознаны"
+                
+                recognized_plates.append({
+                    "id": idx + 1,
+                    "text": text,
+                    "confidence": round(conf, 2)
+                })
 
     _, buffer = cv2.imencode('.jpg', img)
     img_base64 = base64.b64encode(buffer).decode('utf-8')
@@ -132,5 +140,5 @@ async def process_image(file: UploadFile = File(...)):
     return {
         "plate_found": plate_found,
         "image": f"data:image/jpeg;base64,{img_base64}",
-        "text": recognized_text
+        "plates": recognized_plates if recognized_plates else [{"text": "Номерные знаки не обнаружены"}]
     }
