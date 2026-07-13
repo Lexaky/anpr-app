@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ANPR Дедупликатор номеров 1А</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f6f9;
+            margin: 0;
+            padding: 40px 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            max-width: 700px;
+            width: 100%;
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            text-align: center;
+        }
+        h1 { color: #2c3e50; margin-bottom: 25px; font-size: 24px; }
+        #drop-zone {
+            border: 2px dashed #3498db;
+            border-radius: 8px;
+            padding: 40px 20px;
+            background-color: #fafbfc;
+            cursor: pointer;
+            transition: background 0.2s ease;
+        }
+        #drop-zone.hover { background-color: #ebf5fb; border-color: #2980b9; }
+        #drop-zone p { margin: 0; color: #7f8c8d; font-size: 16px; }
+        #file-input { display: none; }
+        #result-container { margin-top: 30px; display: none; }
+        #output-image { max-width: 100%; max-height: 450px; border-radius: 6px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .result-text-box { margin-top: 20px; padding: 15px; background: #eef2f7; border-radius: 6px; }
+        .result-text-box span { font-size: 14px; color: #7f8c8d; display: block; margin-bottom: 5px; }
+        .result-text-box strong { font-size: 28px; color: #2c3e50; letter-spacing: 2px; font-family: 'Courier New', Courier, monospace; }
+        .spinner { display: none; margin: 20px auto; border: 4px solid rgba(0,0,0,0.1); width: 36px; height: 36px; border-radius: 50%; border-left-color: #3498db; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Распознавание квадратных номеров типа 1А</h1>
+    
+    <div id="drop-zone">
+        <p>Перетащите изображение сюда или кликните для выбора через проводник</p>
+        <input type="file" id="file-input" accept="image/*">
+    </div>
+
+    <div class="spinner" id="loading-spinner"></div>
+
+    <div id="result-container">
+        <img id="output-image" src="" alt="Результат детекции">
+        <div class="result-text-box">
+            <span>Распознанный текст номера:</span>
+            <strong id="recognized-text">-</strong>
+        </div>
+    </div>
+</div>
+
+<script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const resultContainer = document.getElementById('result-container');
+    const outputImage = document.getElementById('output-image');
+    const recognizedText = document.getElementById('recognized-text');
+    const spinner = document.getElementById('loading-spinner');
+
+    dropZone.addEventListener('click', () => fileInput.click());
+
+    fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.add('hover'); }, false);
+    });
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => { e.preventDefault(); dropZone.classList.remove('hover'); }, false);
+    });
+    dropZone.addEventListener('drop', (e) => {
+        handleFiles(e.dataTransfer.files);
+    });
+
+    function handleFiles(files) {
+        if (files.length === 0) return;
+        const file = files[0];
+        
+        const formData = new FormData();
+        formData.append('file', file);
+
+        spinner.style.display = 'block';
+        resultContainer.style.display = 'none';
+
+        fetch('/process/', {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            spinner.style.display = 'none';
+            outputImage.src = data.image;
+            recognizedText.innerText = data.text;
+            resultContainer.style.display = 'block';
+        })
+        .catch(err => {
+            spinner.style.display = 'none';
+            alert('Ошибка при обработке изображения');
+            console.error(err);
+        });
+    }
+</script>
+</body>
+</html>

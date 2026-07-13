@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  anpr_web_app:
+    build: .
+    container_name: anpr_container
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./models:/app/models
+    restart: unless-stopped
